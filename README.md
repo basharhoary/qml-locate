@@ -1,23 +1,38 @@
 ![Python](https://img.shields.io/badge/python-3.12-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%2011-lightgrey.svg)
+![Qt](https://img.shields.io/badge/Qt-PySide6-green.svg)
+![Map](https://img.shields.io/badge/map-OpenStreetMap-blue.svg)
 
-# QML Locate App
+# 🗺️ QML Locate App
 
-A small Python + QML app that detects your location (Windows Location or IP fallback)
-and displays it on an OpenStreetMap view using PySide6.
+A small **Python + QML** application that detects your location (via Windows Location or IP fallback)  
+and displays it on an **OpenStreetMap** view using **PySide6 / QtQuick**.  
+You can type any destination address, and the app will calculate and visualize a route using the public **OSRM** routing service.
+
+---
+
+## ✨ Features
+
+- 🌍 **Locate** automatically via Windows services or IP-based fallback  
+- 🗺️ **Interactive map** with animated zoom, smooth pan & pinch support  
+- 🧭 **Routing** using OSRM (driving profile)  
+- 📏 Shows total distance (km) & duration (min)  
+- 🚦 Non-blocking async networking (Qt NetworkAccessManager)  
+- 🕓 Debounced actions & Busy indicator (never freezes)  
+- ⚙️ Configurable via `config/settings.json` (timeouts, retry, tile server, etc.)
+
+---
 
 ## 💻 Setup (virtual environment recommended)
-
-It’s recommended to use a Python virtual environment to keep dependencies isolated.
 
 ### 1️⃣ Create and activate a virtual environment
 
 ```bash
-# Create a venv (Windows)
+# Create venv
 python -m venv .venv
 
-# Activate it on Windows (PowerShell)
+# Activate it (Windows PowerShell)
 .venv\Scripts\Activate.ps1
 
-# Activate it on macOS/Linux
+# Activate it (macOS/Linux)
 source .venv/bin/activate

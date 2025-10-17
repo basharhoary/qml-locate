@@ -1,0 +1,35 @@
+{
+  "network": {
+    "timeouts": {
+      "geocode_ms": 10000,
+      "route_ms": 15000
+    },
+    "retry": {
+      "enabled": true,
+      "retries": 1,
+      "backoff_ms": 600
+    },
+    "headers": {
+      "User-Agent": "qml-locate/0.1 (+contact: basharhoary@hotmail.com)"
+    }
+  },
+  "maps": {
+    "tile_server": "https://tile.openstreetmap.org/",
+    "tile_cache_dirname": "qml-locate-tiles",
+    "high_dpi_tiles": true,
+    "copyright": "© OpenStreetMap contributors",
+    "initial_zoom": 13
+  },
+  "ui": {
+    "wheel_throttle_ms": 100,
+    "zoom_anim_ms": 150,
+    "debounce_route_ms": 500
+  },
+  "logging": {
+    "level": "INFO",
+    "dir": "logs",
+    "filename": "app.log",
+    "max_bytes": 1000000,
+    "backup_count": 3
+  }
+}

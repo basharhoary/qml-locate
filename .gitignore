@@ -17,3 +17,16 @@ Thumbs.db
 # Qt caches
 qtlocation/
 tile-cache/
+
+# IDE
+.idea/
+.vscode/
+
+# Logs & caches
+logs/
+.cache_openmeteo/
+tile-cache/
+
+# OS
+.DS_Store
+Thumbs.db
