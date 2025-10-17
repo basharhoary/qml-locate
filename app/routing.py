@@ -7,6 +7,8 @@ from typing import Callable, Dict, List, Optional, Tuple
 from PySide6.QtCore import QObject, QUrl, QUrlQuery, QTimer, QByteArray
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 
+import logging
+log = logging.getLogger(__name__)
 
 JsonDict = Dict[str, object]
 LatLon = Tuple[float, float]  # (lat, lon)
@@ -68,6 +70,8 @@ class RoutingClient(QObject):
         q.addQueryItem("format", "json")
         q.addQueryItem("limit", "1")
         url.setQuery(q)
+
+        log.debug("HTTP GET OSRM: %s", url.toString())
 
         self._get_json_with_retry(
             url=url,
@@ -246,10 +250,12 @@ class RoutingClient(QObject):
             # Read status code
             status = reply.attribute(QNetworkRequest.HttpStatusCodeAttribute)
             status_code: Optional[int] = int(status) if status is not None else None
+            log.debug("HTTP %s %s -> %s", "GET", url.toString(), status_code if status_code is not None else "no-status")
 
             if reply.error() != QNetworkReply.NetworkError.NoError:
                 # Network-level error
                 on_err(self._qt_error_string(reply), status_code)
+                log.warning("Network error for %s: %s", url.toString(), reply.errorString())
                 return
 
             try:
@@ -264,6 +270,7 @@ class RoutingClient(QObject):
                 # Optionally read message from body
                 msg = self._http_error_message(js, status_code)
                 on_err(msg, status_code)
+                log.warning("HTTP error %s for %s", status_code, url.toString())
                 return
 
             on_ok(js)

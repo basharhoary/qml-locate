@@ -8,9 +8,13 @@ from PySide6.QtCore import (
 )
 from PySide6.QtPositioning import QGeoPositionInfoSource
 
+from math import hypot
+
 from . import load_settings, get_user_agent
 from .routing import RoutingClient  # you'll implement this next (async Qt networking)
 
+import logging
+log = logging.getLogger(__name__)
 
 class Backend(QObject):
     # ---- Signals for QML bindings
@@ -116,6 +120,8 @@ class Backend(QObject):
         Try platform location (Windows Location / etc.).
         If it doesn't respond quickly, fall back to IP geolocation (async).
         """
+        log.info("Locate requested")
+
         if self._isBusy:
             # Allow locate while busy with routing? Safer to block; keeps UI logic simple.
             return
@@ -138,6 +144,8 @@ class Backend(QObject):
             self._set_status("Got location from system services.")
             self._stop_geo_timeout()
             self._cleanup_geosource()
+            log.info("Locate OK via system services: lat=%.6f lon=%.6f", self._lat, self._lon)
+
 
         src.positionUpdated.connect(on_ok)
         src.requestUpdate()
@@ -162,6 +170,7 @@ class Backend(QObject):
         self._lastRouteMs.restart()
 
         dest = (destination_text or "").strip()
+        log.info("Geocoding: %s", dest)
         self.set_destination(dest)
         if not dest:
             self._set_status("Enter a destination address.")
@@ -169,6 +178,8 @@ class Backend(QObject):
 
         self._set_busy(True)
         self._set_status("Geocoding…")
+
+        log.info("Geocoding: %s", dest)
 
         # 1) Geocode destination (async)
         def geo_ok(dlat: float, dlon: float):
@@ -183,13 +194,54 @@ class Backend(QObject):
                 on_err=route_err,
             )
 
+        def _perp_dist(pt, a, b):
+            # perpendicular distance from point pt to segment a-b (in lat/lon degrees)
+            (x, y), (x1, y1), (x2, y2) = pt, a, b
+            dx = x2 - x1
+            dy = y2 - y1
+            if dx == 0 and dy == 0:
+                return hypot(x - x1, y - y1)
+            t = ((x - x1)*dx + (y - y1)*dy) / (dx*dx + dy*dy)
+            t = max(0.0, min(1.0, t))
+            projx = x1 + t*dx
+            projy = y1 + t*dy
+            return hypot(x - projx, y - projy)
+
+        def simplify_path_latlon(points, tol_deg=0.0001):
+            # points: [(lat, lon), ...]; tol_deg ~ ~11m at equator per 1e-4 deg
+            if len(points) <= 2:
+                return points[:]
+            # Ramer–Douglas–Peucker
+            idx_max = -1
+            d_max = 0.0
+            a = points[0]; b = points[-1]
+            for i in range(1, len(points)-1):
+                d = _perp_dist(points[i], a, b)
+                if d > d_max:
+                    idx_max = i; d_max = d
+            if d_max > tol_deg:
+                left = simplify_path_latlon(points[:idx_max+1], tol_deg)
+                right = simplify_path_latlon(points[idx_max:], tol_deg)
+                return left[:-1] + right
+            else:
+                return [a, b]
+
         def geo_err(msg: str):
             self._set_status(msg or "Destination not found.")
             self._set_busy(False)
+            log.warning("Geocode error: %s", msg)
 
         def route_ok(path_latlon: List[Tuple[float, float]], distance_m: float, duration_s: float):
-            # OSRM returns [lon, lat]; routing client should already convert to [lat, lon] for QML
-            self._route_points = [[float(lat), float(lon)] for (lat, lon) in path_latlon]
+            # path_latlon is [(lat,lon),...]
+            # Choose tolerance: ~1e-4 deg ≈ 11 m at equator; scale with distance for long routes
+            log.info("Route OK: points=%d distance=%.1f km duration=%.0f min",
+                len(path_latlon), distance_m/1000.0, duration_s/60.0)
+
+            tol = 0.00005 if distance_m < 50_000 else (0.0001 if distance_m < 300_000 else 0.0002)
+            simp = simplify_path_latlon(path_latlon, tol_deg=tol)
+
+            # Store for QML as [[lat,lon],...]
+            self._route_points = [[float(lat), float(lon)] for (lat, lon) in simp]
             self._route_distance_m = float(distance_m)
             self._route_duration_s = float(duration_s)
 
@@ -200,9 +252,11 @@ class Backend(QObject):
             self._set_status("Route ready.")
             self._set_busy(False)
 
+
         def route_err(msg: str):
             self._set_status(msg or "No route found.")
             self._set_busy(False)
+            log.warning("Route error: %s", msg)
 
         self._router.geocode_async(dest, on_ok=geo_ok, on_err=geo_err)
 
@@ -260,6 +314,8 @@ class Backend(QObject):
         ]
         idx = 0
 
+        log.info("Locate fallback via IP geolocation")
+
         def try_next():
             nonlocal idx
             if idx >= len(endpoints):
@@ -277,6 +333,7 @@ class Backend(QObject):
                         self._set_latitude(float(lat))
                         self._set_longitude(float(lon))
                         self._set_status("Got approximate location from IP.")
+                        log.info("IP geolocation OK: lat=%.6f lon=%.6f", float(lat), float(lon))
                         return
                     except Exception:
                         pass
@@ -284,8 +341,11 @@ class Backend(QObject):
                 try_next()
 
             def err_cb(_msg: str):
+                log.warning("IP geolocation endpoint failed; trying next")
                 try_next()
 
             self._router.json_get_async(url, on_ok=ok_cb, on_err=err_cb)
 
         try_next()
+
+

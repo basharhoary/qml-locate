@@ -64,6 +64,13 @@ ApplicationWindow {
             spacing: 10
             Layout.fillWidth: true
 
+            Timer {
+                id: routeDebounce
+                interval: 500  // ms
+                repeat: false;
+                running: false
+            }
+
             Button {
                 text: "Locate now"
                 enabled: !backend.isBusy
@@ -84,7 +91,11 @@ ApplicationWindow {
                 id: routeBtn
                 text: "Route"
                 enabled: !backend.isBusy
-                onClicked: backend.routeTo(destField.text)
+                onClicked: {
+                    if (routeDebounce.running) return
+                    routeDebounce.start()
+                    backend.routeTo(destField.text)
+                }
             }
 
             Button {
@@ -148,10 +159,18 @@ ApplicationWindow {
             }
 
             // Prepare route coordinates when backend.routePoints changes
-            // (For best performance later, you can move this mapping to Python once per route.)
-            property var routeCoords: (backend.routePoints || []).map(function(p) {
-                return QtPositioning.coordinate(p[0], p[1]);
-            })
+            property var routeCoords: (function() {
+                var pts = backend.routePoints || []
+                var out = []
+                for (var i = 0; i < pts.length; ++i) {
+                    out.push(QtPositioning.coordinate(pts[i][0], pts[i][1]))
+                }
+                // auto-fit after recompute
+                if (out.length > 1) {
+                    Qt.callLater(function(){ fitPath(out) })
+                }
+                return out
+            })()
 
             MapPolyline {
                 id: routeLine
@@ -190,7 +209,7 @@ ApplicationWindow {
             // --- Smooth zoom animation ---
             NumberAnimation on zoomLevel {
                 id: zoomAnimator
-                duration: 150   // from settings (mirrors ui.zoom_anim_ms)
+                duration: zoomAnimMs   // from settings (mirrors ui.zoom_anim_ms)
                 easing.type: Easing.InOutQuad
             }
 
@@ -198,7 +217,7 @@ ApplicationWindow {
             property int pendingWheelSteps: 0
             Timer {
                 id: wheelTimer
-                interval: 100  // mirrors ui.wheel_throttle_ms
+                interval: wheelThrottleMs  // mirrors ui.wheel_throttle_ms
                 repeat: false
                 onTriggered: {
                     var target = map.zoomLevel + map.pendingWheelSteps
@@ -241,6 +260,34 @@ ApplicationWindow {
                 }
             }
 
+            function fitPath(coords) {
+                if (!coords || coords.length < 2) return
+                var minLat =  90, maxLat = -90, minLon =  180, maxLon = -180
+                for (var i = 0; i < coords.length; ++i) {
+                    var c = coords[i]
+                    minLat = Math.min(minLat, c.latitude)
+                    maxLat = Math.max(maxLat, c.latitude)
+                    minLon = Math.min(minLon, c.longitude)
+                    maxLon = Math.max(maxLon, c.longitude)
+                }
+                // center
+                var cenLat = (minLat + maxLat) / 2.0
+                var cenLon = (minLon + maxLon) / 2.0
+                center = QtPositioning.coordinate(cenLat, cenLon)
+
+                // choose a zoom that roughly fits (simple heuristic)
+                // shrink until the span fits; each level ~ halves visible span in raster tiles
+                var spanLat = Math.max(0.0001, maxLat - minLat)
+                var spanLon = Math.max(0.0001, maxLon - minLon)
+                var span = Math.max(spanLat, spanLon)
+                var z = maximumZoomLevel
+                while (z > minimumZoomLevel && span * Math.pow(2, z - maximumZoomLevel) > 0.002) { // heuristic
+                    z -= 1
+                }
+                zoomAnimator.to = Math.max(minimumZoomLevel, Math.min(maximumZoomLevel, z))
+                zoomAnimator.start()
+            }
+
             // --- Keyboard shortcuts ---
             Keys.onReleased: (event) => {
                 if (event.key === Qt.Key_Plus || event.key === Qt.Key_Equal) {
@@ -256,13 +303,13 @@ ApplicationWindow {
     }
 
     // Example: show short toasts for certain statuses (optional)
-    // Connections {
-    //     target: backend
-    //     onStatusChanged: {
-    //         const s = backend.status.toLowerCase()
-    //         if (s.includes("not found") || s.includes("error") || s.includes("failed") ) {
-    //             showToast(backend.status)
-    //         }
-    //     }
-    // }
+    Connections {
+        target: backend
+        function onStatusChanged() {
+            const s = (backend.status || "").toLowerCase()
+            if (s.includes("error") || s.includes("failed") || s.includes("not found") || s.includes("rate limited")) {
+                showToast(backend.status)
+            }
+        }
+    }
 }

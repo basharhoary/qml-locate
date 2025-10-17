@@ -17,10 +17,14 @@ import os
 from pathlib import Path
 from typing import Any, Dict
 
+import logging
+from logging.handlers import RotatingFileHandler
+
 __all__ = [
     "APP_NAME",
     "__version__",
     "load_settings",
+    "init_logging",
     "project_path",
     "get_user_agent",
 ]
@@ -70,6 +74,31 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "backup_count": 3,
     },
 }
+
+def init_logging(settings: Dict[str, Any]) -> None:
+    lg = logging.getLogger()
+    if lg.handlers:
+        return  # already initialized
+    level_name = settings["logging"].get("level", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+    lg.setLevel(level)
+
+    log_dir = project_path(settings["logging"]["dir"])
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / settings["logging"]["filename"]
+    handler = RotatingFileHandler(
+        log_file,
+        maxBytes=int(settings["logging"]["max_bytes"]),
+        backupCount=int(settings["logging"]["backup_count"])
+    )
+    fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    handler.setFormatter(fmt)
+    lg.addHandler(handler)
+
+    # also echo to console
+    console = logging.StreamHandler()
+    console.setFormatter(fmt)
+    lg.addHandler(console)
 
 
 def project_path(*parts: str) -> Path:

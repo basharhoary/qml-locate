@@ -11,6 +11,10 @@ from PySide6.QtQml import QQmlApplicationEngine
 from . import APP_NAME, __version__, load_settings, project_path
 from .backend import Backend
 
+from . import APP_NAME, __version__, load_settings, project_path, init_logging
+
+import logging
+log = logging.getLogger(__name__)
 
 def main() -> int:
     # --- Qt app ---
@@ -20,6 +24,8 @@ def main() -> int:
 
     # --- Settings & cache paths ---
     cfg = load_settings()
+
+    init_logging(cfg)
 
     cache_root = Path(QStandardPaths.writableLocation(QStandardPaths.CacheLocation))
     cache_root.mkdir(parents=True, exist_ok=True)
@@ -41,6 +47,9 @@ def main() -> int:
     ctx.setContextProperty("tileCopyright", cfg["maps"]["copyright"])
     ctx.setContextProperty("initialZoom", int(cfg["maps"]["initial_zoom"]))
     ctx.setContextProperty("appVersion", __version__)
+    ctx.setContextProperty("zoomAnimMs", int(cfg["ui"]["zoom_anim_ms"]))
+    ctx.setContextProperty("wheelThrottleMs", int(cfg["ui"]["wheel_throttle_ms"]))
+
 
     # Load QML
     qml_path = project_path("app", "ui", "main.qml")
