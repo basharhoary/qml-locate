@@ -36,3 +36,13 @@ python -m venv .venv
 
 # Activate it (macOS/Linux)
 source .venv/bin/activate
+
+
+## Known limitations
+- Uses public Nominatim/OSRM services (rate limits may apply).
+- No offline tiles yet; network required for map/route.
+
+## Next ideas
+- Offline MBTiles pack for common areas.
+- Vector tiles via MapLibre GL for crisper labels and smooth pitch/rotate.
+- Waypoints (A → B → C) with draggable markers.
