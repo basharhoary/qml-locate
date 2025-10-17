@@ -25,7 +25,7 @@ You can type any destination address, and the app will calculate and visualize a
 
 ## 💻 Setup (virtual environment recommended)
 
-### 1️⃣ Create and activate a virtual environment
+### Create and activate a virtual environment
 
 ```bash
 # Create venv
@@ -36,7 +36,7 @@ python -m venv .venv
 
 # Activate it (macOS/Linux)
 source .venv/bin/activate
-
+```
 
 ## Known limitations
 - Uses public Nominatim/OSRM services (rate limits may apply).
